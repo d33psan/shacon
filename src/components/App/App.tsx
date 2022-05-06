@@ -5,15 +5,11 @@ import axios from 'axios';
 import React from 'react';
 import {
   Button,
-  Dimmer,
-  Dropdown,
   DropdownProps,
   Grid,
   Icon,
   Input,
-  Loader,
   Message,
-  Popup,
   Progress,
   Menu,
   Modal,

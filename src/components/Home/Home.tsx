@@ -1,5 +1,5 @@
 import React from 'react';
-import { Divider, Header, Icon, Step } from 'semantic-ui-react';
+import { Icon } from 'semantic-ui-react';
 import firebase from 'firebase/compat/app';
 
 import { NewRoomButton } from '../TopBar';
@@ -23,32 +23,6 @@ export const Home = ({ user }: { user: firebase.User | undefined }) => {
   );
 };
 
-const Feature = ({
-  icon,
-  text,
-  title,
-}: {
-  icon: string;
-  text: string;
-  title: string;
-}) => {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flex: '1 1 0px',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: '10px',
-        minWidth: '180px',
-      }}
-    >
-      <Icon fitted size="huge" name={icon as any} />
-      <h4 className={styles.featureTitle}>{title}</h4>
-      <div className={styles.featureText}>{text}</div>
-    </div>
-  );
-};
 
 const Hero = ({
   heroText,

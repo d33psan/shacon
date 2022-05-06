@@ -1,11 +1,9 @@
 import React from 'react';
-import { serverPath, colorMappings, getUserImage } from '../../utils';
-import { Icon, Popup, Button, Dropdown, Image } from 'semantic-ui-react';
+import { serverPath } from '../../utils';
+import { Icon, Button, Dropdown } from 'semantic-ui-react';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
-import { LoginModal } from '../Modal/LoginModal';
 import axios from 'axios';
-import { ProfileModal } from '../Modal/ProfileModal';
 
 export class NewRoomButton extends React.Component<{
   user: firebase.User | undefined;
