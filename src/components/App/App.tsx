@@ -28,7 +28,6 @@ import {
   openFileSelector,
   getAndSaveClientId,
   calculateMedian,
-  getUserImage,
   getColorForString,
 } from '../../utils';
 import { generateName } from '../../utils/generateName';
@@ -253,11 +252,6 @@ export default class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.heartbeat);
   }
 
-  componentDidUpdate(prevProps: AppProps) {
-    if (this.props.user && !prevProps.user) {
-      this.loadSignInData();
-    }
-  }
 
   loadSettings = async () => {
     // Load settings from localstorage
@@ -265,23 +259,6 @@ export default class App extends React.Component<AppProps, AppState> {
     this.setState({ settings });
   };
 
-  loadSignInData = async () => {
-    const user = this.props.user;
-    if (user && this.socket) {
-      // NOTE: firebase auth doesn't provide the actual first name data that individual providers (G/FB) do
-      // It's accessible at the time the user logs in but not afterward
-      // If we want accurate surname/given name we'll need to save that somewhere
-      const firstName = user.displayName?.split(' ')[0];
-      if (firstName) {
-        this.updateName(null, { value: firstName });
-      }
-      const userImage = await getUserImage(user);
-      if (userImage) {
-        this.updatePicture(userImage);
-      }
-      this.updateUid(user);
-    }
-  };
 
   loadYouTube = () => {
     // This code loads the IFrame Player API code asynchronously.
@@ -421,7 +398,6 @@ export default class App extends React.Component<AppProps, AppState> {
       // Load username from localstorage
       let userName = window.localStorage.getItem('shacon-username');
       this.updateName(null, { value: userName || generateName() });
-      this.loadSignInData();
     });
     socket.on('error', (err: any) => {
       console.error(err);
@@ -1499,7 +1475,6 @@ export default class App extends React.Component<AppProps, AppState> {
           hide={this.state.currentTab !== 'chat' || !displayRightContent}
           isChatDisabled={this.state.isChatDisabled}
           owner={this.state.owner}
-          user={this.props.user}
           ref={this.chatRef}
         />
         {this.state.state === 'connected' && (
@@ -1512,7 +1487,6 @@ export default class App extends React.Component<AppProps, AppState> {
             rosterUpdateTS={this.state.rosterUpdateTS}
             hide={this.state.currentTab !== 'people' || !displayRightContent}
             owner={this.state.owner}
-            user={this.props.user}
           />
         )}
         <SettingsTab
@@ -1630,7 +1604,6 @@ export default class App extends React.Component<AppProps, AppState> {
           ></Message>
         )}
         <TopBar
-          user={this.props.user}
           isCustomer={this.props.isCustomer}
           isSubscriber={this.props.isSubscriber}
           roomTitle={this.state.roomTitle}

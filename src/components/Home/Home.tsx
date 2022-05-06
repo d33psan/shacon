@@ -14,7 +14,7 @@ export const Home = ({ user }: { user: firebase.User | undefined }) => {
             <div
               style={{ marginTop: '8px', width: '160px', paddingTop: '200px' }}
             >
-              <NewRoomButton user={user} />
+              <NewRoomButton />
             </div>
           }
         />

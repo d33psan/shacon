@@ -15,7 +15,6 @@ import {
 import { Separator } from '../App/App';
 import { UserMenu } from '../UserMenu/UserMenu';
 import { Socket } from 'socket.io-client';
-import firebase from 'firebase/compat/app';
 import classes from './Chat.module.css';
 import {
   CSSTransition,
@@ -35,7 +34,6 @@ interface ChatProps {
   getMediaDisplayName: Function;
   hide?: boolean;
   isChatDisabled?: boolean;
-  user: firebase.User | undefined;
   owner: string | undefined;
   ref: RefObject<Chat>;
 }
@@ -233,7 +231,6 @@ export class Chat extends React.Component<ChatProps> {
                 nameMap={this.props.nameMap}
                 formatMessage={this.formatMessage}
                 owner={this.props.owner}
-                user={this.props.user}
                 socket={this.props.socket}
                 isChatDisabled={this.props.isChatDisabled}
                 setReactionMenu={this.setReactionMenu}
@@ -324,7 +321,6 @@ const ChatMessage = ({
   nameMap,
   pictureMap,
   formatMessage,
-  user,
   socket,
   owner,
   isChatDisabled,
@@ -336,7 +332,6 @@ const ChatMessage = ({
   nameMap: StringDict;
   pictureMap: StringDict;
   formatMessage: (cmd: string, msg: string) => React.ReactNode;
-  user: firebase.User | undefined;
   socket: Socket;
   owner: string | undefined;
   isChatDisabled: boolean | undefined;
@@ -366,12 +361,11 @@ const ChatMessage = ({
       <Comment.Content>
         <UserMenu
           displayName={nameMap[id] || id}
-          user={user}
           timestamp={timestamp}
           socket={socket}
           userToManage={id}
           isChatMessage
-          disabled={!Boolean(owner && owner === user?.uid)}
+          disabled={!Boolean(owner)}
           trigger={
             <Comment.Author as="a" className="light">
               {Boolean(system) && 'System'}
