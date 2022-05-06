@@ -1,3 +1,3 @@
 # Shacon
 
-Watch movies and videos together in private chat rooms.
+An application to Watch movies and videos together in private chat rooms.
