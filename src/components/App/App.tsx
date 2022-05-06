@@ -1130,8 +1130,6 @@ export default class App extends React.Component<AppProps, AppState> {
     let container = document.getElementById('theaterContainer') as HTMLElement;
     if (bVideoOnly || isMobile()) {
       if (this.isVBrowser() && !isMobile()) {
-        // Can't really control the VBrowser on mobile anyway, so just fullscreen the video
-        // https://github.com/howardchung/shacon/issues/208
         container = document.getElementById('leftVideoParent') as HTMLElement;
       } else {
         container = document.getElementById(
@@ -1143,7 +1141,6 @@ export default class App extends React.Component<AppProps, AppState> {
       !container.requestFullscreen &&
       (container as any).webkitEnterFullScreen
     ) {
-      // e.g. iPhone doesn't allow requestFullscreen
       (container as any).webkitEnterFullscreen();
       return;
     }

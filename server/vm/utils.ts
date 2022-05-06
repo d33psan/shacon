@@ -6,8 +6,6 @@ import { Hetzner } from './hetzner';
 import { DigitalOcean } from './digitalocean';
 import { Docker } from './docker';
 
-export const imageName = 'howardc93/vbrowser';
-
 export const assignVM = async (
   redis: Redis.Redis,
   vmManager: VMManager

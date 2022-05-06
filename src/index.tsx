@@ -55,9 +55,6 @@ class ShaCon extends React.Component {
       <React.StrictMode>
         {this.state.isCustomDomain && (
           <Modal inverted basic open>
-            <Modal.Header>
-              Please contact Howard for access to beta/testing mode.
-            </Modal.Header>
           </Modal>
         )}
         <BrowserRouter>
