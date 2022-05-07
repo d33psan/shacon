@@ -17,3 +17,6 @@ An application to watch movies and videos together in private chat rooms.
 2. Open a shell and start the server using ```PORT=8080 npm run dev HTTPS=true```
 3. Open another shell and start the application using ```PORT=3000 npm run start HTTPS=true```
 
+## Try it now
+
+https://shacon.herokuapp.com
