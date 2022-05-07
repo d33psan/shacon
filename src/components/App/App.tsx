@@ -28,7 +28,6 @@ import {
   openFileSelector,
   getAndSaveClientId,
   calculateMedian,
-  getUserImage,
   getColorForString,
 } from '../../utils';
 import { generateName } from '../../utils/generateName';
@@ -42,10 +41,8 @@ import { SearchComponent } from '../SearchComponent/SearchComponent';
 import { Controls } from '../Controls/Controls';
 import { SettingsTab } from '../Settings/SettingsTab';
 import { ErrorModal } from '../Modal/ErrorModal';
-import { PasswordModal } from '../Modal/PasswordModal';
 import { ScreenShareModal } from '../Modal/ScreenShareModal';
 import { FileShareModal } from '../Modal/FileShareModal';
-import firebase from 'firebase/compat/app';
 import { SubtitleModal } from '../Modal/SubtitleModal';
 
 declare global {
@@ -71,7 +68,6 @@ window.shacon = {
 
 interface AppProps {
   vanity?: string;
-  user?: firebase.User;
   isSubscriber: boolean;
   isCustomer: boolean;
   beta: boolean;
@@ -253,34 +249,11 @@ export default class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.heartbeat);
   }
 
-  componentDidUpdate(prevProps: AppProps) {
-    if (this.props.user && !prevProps.user) {
-      this.loadSignInData();
-    }
-  }
 
   loadSettings = async () => {
     // Load settings from localstorage
     let settings = getCurrentSettings();
     this.setState({ settings });
-  };
-
-  loadSignInData = async () => {
-    const user = this.props.user;
-    if (user && this.socket) {
-      // NOTE: firebase auth doesn't provide the actual first name data that individual providers (G/FB) do
-      // It's accessible at the time the user logs in but not afterward
-      // If we want accurate surname/given name we'll need to save that somewhere
-      const firstName = user.displayName?.split(' ')[0];
-      if (firstName) {
-        this.updateName(null, { value: firstName });
-      }
-      const userImage = await getUserImage(user);
-      if (userImage) {
-        this.updatePicture(userImage);
-      }
-      this.updateUid(user);
-    }
   };
 
   loadYouTube = () => {
@@ -421,7 +394,6 @@ export default class App extends React.Component<AppProps, AppState> {
       // Load username from localstorage
       let userName = window.localStorage.getItem('shacon-username');
       this.updateName(null, { value: userName || generateName() });
-      this.loadSignInData();
     });
     socket.on('error', (err: any) => {
       console.error(err);
@@ -846,10 +818,8 @@ export default class App extends React.Component<AppProps, AppState> {
   startVBrowser = async (rcToken: string, options: { size: string }) => {
     // user.uid is the public user identifier
     // user.getIdToken() is the secret access token we can send to the server to prove identity
-    const user = this.props.user;
-    const uid = user?.uid;
-    const token = await user?.getIdToken();
-    this.socket.emit('CMD:startVBrowser', { options, uid, token, rcToken });
+
+    this.socket.emit('CMD:startVBrowser', { options, rcToken });
   };
 
   stopVBrowser = async () => {
@@ -1309,11 +1279,6 @@ export default class App extends React.Component<AppProps, AppState> {
     this.socket.emit('CMD:picture', url);
   };
 
-  updateUid = async (user: firebase.User) => {
-    const uid = user.uid;
-    const token = await user.getIdToken();
-    this.socket.emit('CMD:uid', { uid, token });
-  };
 
   getMediaDisplayName = (input: string) => {
     if (!input) {
@@ -1354,24 +1319,20 @@ export default class App extends React.Component<AppProps, AppState> {
   };
 
   setRoomLock = async (locked: boolean) => {
-    const uid = this.props.user?.uid;
-    const token = await this.props.user?.getIdToken();
-    this.socket.emit('CMD:lock', { uid, token, locked });
+    this.socket.emit('CMD:lock', { locked });
   };
 
   haveLock = () => {
     if (!this.state.roomLock) {
       return true;
     }
-    return this.props.user?.uid === this.state.roomLock;
+    return this.state.roomLock;
   };
 
   setIsChatDisabled = (val: boolean) => this.setState({ isChatDisabled: val });
 
   clearChat = async () => {
-    const uid = this.props.user?.uid;
-    const token = await this.props.user?.getIdToken();
-    this.socket.emit('CMD:deleteChatMessages', { uid, token });
+    this.socket.emit('CMD:deleteChatMessages', {  });
   };
 
   getLeaderTime = () => {
@@ -1499,7 +1460,6 @@ export default class App extends React.Component<AppProps, AppState> {
           hide={this.state.currentTab !== 'chat' || !displayRightContent}
           isChatDisabled={this.state.isChatDisabled}
           owner={this.state.owner}
-          user={this.props.user}
           ref={this.chatRef}
         />
         {this.state.state === 'connected' && (
@@ -1512,12 +1472,10 @@ export default class App extends React.Component<AppProps, AppState> {
             rosterUpdateTS={this.state.rosterUpdateTS}
             hide={this.state.currentTab !== 'people' || !displayRightContent}
             owner={this.state.owner}
-            user={this.props.user}
           />
         )}
         <SettingsTab
           hide={this.state.currentTab !== 'settings' || !displayRightContent}
-          user={this.props.user}
           roomLock={this.state.roomLock}
           setRoomLock={this.setRoomLock}
           socket={this.socket}
@@ -1597,12 +1555,6 @@ export default class App extends React.Component<AppProps, AppState> {
           />
         )}
         {this.state.error && <ErrorModal error={this.state.error} />}
-        {this.state.isErrorAuth && (
-          <PasswordModal
-            savedPasswords={this.state.savedPasswords}
-            roomId={this.state.roomId}
-          />
-        )}
         {this.state.errorMessage && (
           <Message
             negative
@@ -1630,7 +1582,6 @@ export default class App extends React.Component<AppProps, AppState> {
           ></Message>
         )}
         <TopBar
-          user={this.props.user}
           isCustomer={this.props.isCustomer}
           isSubscriber={this.props.isSubscriber}
           roomTitle={this.state.roomTitle}

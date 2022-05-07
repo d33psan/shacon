@@ -15,7 +15,6 @@ import { getCurrentSettings, updateSettings } from './LocalSettings';
 import axios from 'axios';
 import { serverPath } from '../../utils';
 import { PermanentRoomModal } from '../Modal/PermanentRoomModal';
-import firebase from 'firebase/compat/app';
 import { Socket } from 'socket.io-client';
 import { HexColorPicker } from 'react-colorful';
 
@@ -25,7 +24,6 @@ const roomDescriptionMaxCharLength = 120;
 
 interface SettingsTabProps {
   hide: boolean;
-  user: firebase.User | undefined;
   roomLock: string;
   setRoomLock: Function;
   socket: Socket;
@@ -53,7 +51,6 @@ interface SettingsTabProps {
 
 export const SettingsTab = ({
   hide,
-  user,
   roomLock,
   setRoomLock,
   socket,
@@ -86,28 +83,6 @@ export const SettingsTab = ({
     string | undefined
   >('');
 
-  const setRoomState = useCallback(
-    async (data: any) => {
-      const token = await user?.getIdToken();
-      socket.emit('CMD:setRoomState', {
-        uid: user?.uid,
-        token,
-        ...data,
-      });
-    },
-    [socket, user]
-  );
-  const setRoomOwner = useCallback(
-    async (data: any) => {
-      const token = await user?.getIdToken();
-      socket.emit('CMD:setRoomOwner', {
-        uid: user?.uid,
-        token,
-        ...data,
-      });
-    },
-    [socket, user]
-  );
   const checkValidVanity = useCallback(
     async (input: string) => {
       if (!input) {
@@ -133,8 +108,8 @@ export const SettingsTab = ({
     [setValidVanity, roomLink]
   );
   const disableLocking =
-    !Boolean(user) || Boolean(roomLock && roomLock !== user?.uid);
-  const disableOwning = !Boolean(user) || Boolean(owner && owner !== user?.uid);
+    Boolean(roomLock );
+  const disableOwning = Boolean(owner);
 
   return (
     <div
@@ -151,11 +126,6 @@ export const SettingsTab = ({
         ></PermanentRoomModal>
       )}
       <div className="sectionHeader">Room Settings</div>
-      {!user && (
-        <Message color="yellow" size="tiny">
-          You need to be signed in to change these settings.
-        </Message>
-      )}
       <SettingRow
         icon={roomLock ? 'lock' : 'lock open'}
         name={`Lock Room`}
@@ -180,13 +150,12 @@ export const SettingsTab = ({
           }
           checked={Boolean(owner)}
           disabled={disableOwning}
-          onChange={(_e, data) => setRoomOwner({ undo: !data.checked })}
         />
       }
-      {owner && owner === user?.uid && (
+      {owner && (
         <div className="sectionHeader">Admin Settings</div>
       )}
-      {owner && owner === user?.uid && (
+      {owner && (
         <SettingRow
           icon={'key'}
           name={`Set Room Password`}
@@ -205,7 +174,7 @@ export const SettingsTab = ({
           disabled={false}
         />
       )}
-      {owner && owner === user?.uid && (
+      {owner && (
         <SettingRow
           icon={'folder'}
           name={`Set Room Media Source`}
@@ -224,7 +193,7 @@ export const SettingsTab = ({
           disabled={false}
         />
       )}
-      {owner && owner === user?.uid && (
+      {owner && (
         <SettingRow
           icon={'i cursor'}
           name={`Disable Chat`}
@@ -237,7 +206,7 @@ export const SettingsTab = ({
           }}
         />
       )}
-      {owner && owner === user?.uid && (
+      {owner && (
         <SettingRow
           icon={'i delete'}
           name={`Clear Chat`}
@@ -256,7 +225,7 @@ export const SettingsTab = ({
           }
         />
       )}
-      {owner && owner === user?.uid && (
+      {owner && (
         <SettingRow
           icon={'linkify'}
           name={`Set Custom Room URL`}
@@ -291,7 +260,7 @@ export const SettingsTab = ({
           }
         />
       )}
-      {owner && owner === user?.uid && (
+      {owner && (
         <SettingRow
           icon={'pencil'}
           name={`Set Room Title, Description & Color`}
@@ -380,26 +349,13 @@ export const SettingsTab = ({
           marginBottom: 10,
         }}
       />
-      {owner && owner === user?.uid && (
+      {owner && (
         <Button
           primary
           disabled={!validVanity || !adminSettingsChanged}
           labelPosition="left"
           icon
           fluid
-          onClick={() => {
-            setRoomState({
-              vanity: vanity,
-              password: password,
-              isChatDisabled: isChatDisabled,
-              roomTitle: roomTitleInput ?? roomTitle,
-              roomDescription: roomDescriptionInput ?? roomDescription,
-              roomTitleColor:
-                roomTitleColorInput || roomTitleColor || defaultRoomTitleColor,
-              mediaPath: mediaPath,
-            });
-            setAdminSettingsChanged(false);
-          }}
         >
           <Icon name="save" />
           Save Admin Settings

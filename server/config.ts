@@ -5,9 +5,6 @@ const defaults = {
   DATABASE_URL: '', // Optional, for permanent rooms (localhost:5432 for a local install)
   YOUTUBE_API_KEY: '', // Optional, provide one to enable searching YouTube
   NODE_ENV: '', // Usually, you should let process.env.NODE_ENV override this
-  FIREBASE_ADMIN_SDK_CONFIG: '', // Optional, for features requiring sign-in/authentication
-  FIREBASE_DATABASE_URL: '', // Optional (unused)
-  STRIPE_SECRET_KEY: '', // Optional, for subscriptions
   VBROWSER_SESSION_SECONDS: 10800, // Number of seconds to allow vbrowsers to run for
   VBROWSER_SESSION_SECONDS_LARGE: 86400, // Number of seconds to allow large vbrowsers to run for
   VM_POOL_RAMP_DOWN_HOURS: '', // Comma separated start/end UTC hours of the ramp down period

@@ -1,11 +1,8 @@
 import React from 'react';
-import { Icon } from 'semantic-ui-react';
-import firebase from 'firebase/compat/app';
-
 import { NewRoomButton } from '../TopBar';
 import styles from './Home.module.css';
 
-export const Home = ({ user }: { user: firebase.User | undefined }) => {
+export const Home = () => {
   return (
     <div>
       <div className={styles.container}>
@@ -14,7 +11,7 @@ export const Home = ({ user }: { user: firebase.User | undefined }) => {
             <div
               style={{ marginTop: '8px', width: '160px', paddingTop: '200px' }}
             >
-              <NewRoomButton user={user} />
+              <NewRoomButton />
             </div>
           }
         />
@@ -28,7 +25,6 @@ const Hero = ({
   heroText,
   subText,
   action,
-  image,
   color,
 }: {
   heroText?: string;

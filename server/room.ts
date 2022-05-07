@@ -5,12 +5,9 @@ import Redis from 'ioredis';
 import { Server, Socket } from 'socket.io';
 import { Client, QueryResult } from 'pg';
 
-import { getUser, validateUserToken } from './utils/firebase';
 import { redisCount, redisCountDistinct } from './utils/redis';
-import { getCustomerByEmail } from './utils/stripe';
 import { AssignedVM } from './vm/base';
 import { getStartOfDay } from './utils/time';
-import { updateObject, upsertObject } from './utils/postgres';
 import { fetchYoutubeVideo, getYoutubeVideoID } from './utils/youtube';
 
 let redis: Redis.Redis | undefined = undefined;
@@ -410,22 +407,6 @@ export class Room {
     if (!data) {
       return;
     }
-    const decoded = await validateUserToken(data.uid, data.token);
-    if (!decoded) {
-      return;
-    }
-    this.uidMap[socket.id] = decoded.uid;
-
-    const customer = await getCustomerByEmail(decoded.email as string);
-    const isSubscriber = Boolean(
-      customer?.subscriptions?.data?.find((sub) => sub?.status === 'active')
-    );
-    if (isSubscriber) {
-      const user = this.roster.find((user) => user.id === socket.id);
-      if (user) {
-        user.isSub = true;
-      }
-    }
   };
 
   private startHosting = (socket: Socket, data: string) => {
@@ -675,24 +656,6 @@ export class Room {
       return;
     }
 
-    const decoded = await validateUserToken(data.uid, data.token);
-    if (!decoded || !decoded.uid) {
-      socket.emit('errorMessage', 'Invalid user token.');
-      return;
-    }
-
-    const user = await getUser(decoded.uid);
-    // Validate verified email if not a third-party auth provider
-    if (
-      user?.providerData[0].providerId === 'password' &&
-      !user?.emailVerified
-    ) {
-      socket.emit(
-        'errorMessage',
-        'A verified email is required to start a VBrowser.'
-      );
-      return;
-    }
 
     const clientId = this.clientIdMap[socket.id];
     const uid = this.uidMap[socket.id];
@@ -739,22 +702,6 @@ export class Room {
     let isLarge = false;
     let region = 'US';
     let provider = data.options?.provider ?? config.VM_MANAGER_ID;
-    if (config.STRIPE_SECRET_KEY && data && data.uid && data.token) {
-      const decoded = await validateUserToken(data.uid, data.token);
-      // Check if user is subscriber, if so allow isLarge
-      if (decoded?.email) {
-        const customer = await getCustomerByEmail(decoded.email);
-        if (
-          customer?.subscriptions?.data?.find((sub) => sub?.status === 'active')
-        ) {
-          console.log('found active sub for ', customer?.email);
-          isLarge = data.options?.size === 'large';
-          if (data.options?.region) {
-            region = data.options?.region;
-          }
-        }
-      }
-    }
 
     if (config.RECAPTCHA_SECRET_KEY) {
       try {
@@ -859,15 +806,7 @@ export class Room {
     if (!data) {
       return;
     }
-    const decoded = await validateUserToken(data.uid, data.token);
-    if (!decoded) {
-      return;
-    }
-    if (!this.validateLock(socket.id) && !this.validateOwner(decoded.uid)) {
-      return;
-    }
-    this.lock = data.locked ? decoded.uid : '';
-    this.io.of(this.roomId).emit('REC:lock', this.lock);
+
     const chatMsg = {
       id: socket.id,
       cmd: data.locked ? 'lock' : 'unlock',
@@ -888,75 +827,15 @@ export class Room {
       socket.emit('errorMessage', 'Database is not available');
       return;
     }
-    const decoded = await validateUserToken(
-      data?.uid as string,
-      data?.token as string
-    );
-    if (!decoded) {
-      socket.emit('errorMessage', 'Failed to authenticate user');
-      return;
-    }
-    const owner = decoded.uid;
-    const isOwner = await this.validateOwner(decoded.uid);
-    if (!isOwner) {
-      socket.emit('errorMessage', 'Not current room owner');
-      return;
-    }
-    const customer = await getCustomerByEmail(decoded.email as string);
-    const isSubscriber = Boolean(
-      customer?.subscriptions?.data?.find((sub) => sub?.status === 'active')
-    );
+
     if (data.undo) {
-      await updateObject(
-        postgres,
-        'room',
-        {
-          password: null,
-          owner: null,
-          vanity: null,
-          isChatDisabled: null,
-          isSubRoom: null,
-          roomTitle: null,
-          roomDescription: null,
-          roomTitleColor: null,
-          mediaPath: null,
-        },
-        { roomId: this.roomId }
-      );
       socket.emit('REC:getRoomState', {});
     } else {
-      // validate room count
-      const roomCount = (
-        await postgres.query(
-          'SELECT count(1) from room where owner = $1 AND "roomId" != $2',
-          [owner, this.roomId]
-        )
-      ).rows[0].count;
-      const limit = isSubscriber ? config.SUBSCRIBER_ROOM_LIMIT : 1;
-      // console.log(roomCount, limit, isSubscriber);
-      if (roomCount >= limit) {
-        socket.emit(
-          'errorMessage',
-          `You've exceeded the permanent room limit. Subscribe for additional permanent rooms.`
-        );
-        return;
-      }
+
       const roomObj: any = {
         roomId: this.roomId,
-        owner: owner,
-        isSubRoom: isSubscriber,
       };
-      let result: QueryResult | null = null;
-      result = await upsertObject(postgres, 'room', roomObj, {
-        roomId: this.roomId,
-      });
-      const row = result?.rows?.[0];
-      // console.log(result, row);
-      socket.emit('REC:getRoomState', {
-        password: row?.password,
-        vanity: row?.vanity,
-        owner: row?.owner,
-      });
+
     }
   };
 
@@ -1003,23 +882,7 @@ export class Room {
       socket.emit('errorMessage', 'Database is not available');
       return;
     }
-    const decoded = await validateUserToken(
-      data?.uid as string,
-      data?.token as string
-    );
-    if (!decoded) {
-      socket.emit('errorMessage', 'Failed to authenticate user');
-      return;
-    }
-    const isOwner = await this.validateOwner(decoded.uid);
-    if (!isOwner) {
-      socket.emit('errorMessage', 'Not current room owner');
-      return;
-    }
-    const customer = await getCustomerByEmail(decoded.email as string);
-    const isSubscriber = Boolean(
-      customer?.subscriptions?.data?.find((sub) => sub?.status === 'active')
-    );
+
     const {
       password,
       vanity,
@@ -1065,13 +928,7 @@ export class Room {
       isChatDisabled: isChatDisabled,
       mediaPath: mediaPath,
     };
-    if (isSubscriber) {
-      // user must be sub to set certain properties
-      roomObj.vanity = vanity;
-      roomObj.roomTitle = roomTitle;
-      roomObj.roomDescription = roomDescription;
-      roomObj.roomTitleColor = roomTitleColor;
-    }
+
     try {
       const query = `UPDATE room
         SET ${Object.keys(roomObj).map((k, i) => `"${k}" = $${i + 1}`)}
@@ -1081,7 +938,6 @@ export class Room {
       const result = await postgres.query(query, [
         ...Object.values(roomObj),
         this.roomId,
-        decoded.uid,
       ]);
       const row = result.rows[0];
       this.isChatDisabled = Boolean(row?.isChatDisabled);
@@ -1154,19 +1010,8 @@ export class Room {
       userToBeKicked: string;
     }
   ) => {
-    const decoded = await validateUserToken(
-      data?.uid as string,
-      data?.token as string
-    );
-    if (!decoded) {
-      socket.emit('errorMessage', 'Failed to authenticate user');
-      return;
-    }
-    const isOwner = await this.validateOwner(decoded.uid);
-    if (!isOwner) {
-      socket.emit('errorMessage', 'Not current room owner');
-      return;
-    }
+
+
     const userToBeKickedSocket = this.io
       .of(this.roomId)
       .sockets.get(data.userToBeKicked);
@@ -1189,19 +1034,7 @@ export class Room {
       token: string;
     }
   ) => {
-    const decoded = await validateUserToken(
-      data?.uid as string,
-      data?.token as string
-    );
-    if (!decoded) {
-      socket.emit('errorMessage', 'Failed to authenticate user');
-      return;
-    }
-    const isOwner = await this.validateOwner(decoded.uid);
-    if (!isOwner) {
-      socket.emit('errorMessage', 'Not current room owner');
-      return;
-    }
+
     if (!data.timestamp && !data.author) {
       this.chat.length = 0;
     } else {

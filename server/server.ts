@@ -17,14 +17,11 @@ import {
   getRedisCountDayDistinct,
   redisCount,
 } from './utils/redis';
-import { getCustomerByEmail, createSelfServicePortal } from './utils/stripe';
-import { deleteUser, validateUserToken } from './utils/firebase';
 import path from 'path';
 import { Client } from 'pg';
 import { getStartOfDay } from './utils/time';
-import { getBgVMManagers, getSessionLimitSeconds } from './vm/utils';
+import { getSessionLimitSeconds } from './vm/utils';
 import { hashString } from './utils/string';
-import { insertObject } from './utils/postgres';
 import axios from 'axios';
 import crypto from 'crypto';
 import zlib from 'zlib';
@@ -251,84 +248,11 @@ app.post('/createRoom', async (req, res) => {
       roomId: newRoom.roomId,
       creationTime: new Date(),
     };
-    await insertObject(postgres, 'room', roomObj);
   }
-  const decoded = await validateUserToken(req.body?.uid, req.body?.token);
-  newRoom.creator = decoded?.email;
+
   newRoom.video = req.body?.video || '';
   rooms.set(name, newRoom);
   res.json({ name: name.slice(1) });
-});
-
-app.post('/manageSub', async (req, res) => {
-  const decoded = await validateUserToken(req.body?.uid, req.body?.token);
-  if (!decoded) {
-    return res.status(400).json({ error: 'invalid user token' });
-  }
-  if (!decoded.email) {
-    return res.status(400).json({ error: 'no email found' });
-  }
-  const customer = await getCustomerByEmail(decoded.email);
-  if (!customer) {
-    return res.status(400).json({ error: 'customer not found' });
-  }
-  const session = await createSelfServicePortal(
-    customer.id,
-    req.body?.return_url
-  );
-  return res.json(session);
-});
-
-app.delete('/deleteAccount', async (req, res) => {
-  const decoded = await validateUserToken(req.body?.uid, req.body?.token);
-  if (!decoded) {
-    return res.status(400).json({ error: 'invalid user token' });
-  }
-  if (postgres) {
-    await postgres?.query('DELETE FROM room WHERE owner = $1', [decoded.uid]);
-  }
-  await deleteUser(decoded.uid);
-  redisCount('deleteAccount');
-  return res.json({});
-});
-
-app.get('/metadata', async (req, res) => {
-  const decoded = await validateUserToken(
-    req.query?.uid as string,
-    req.query?.token as string
-  );
-  let isCustomer = false;
-  let isSubscriber = false;
-  if (decoded?.email) {
-    const customer = await getCustomerByEmail(decoded.email);
-    isSubscriber = Boolean(
-      customer?.subscriptions?.data?.find((sub) => sub?.status === 'active')
-    );
-    isCustomer = Boolean(customer);
-  }
-  let isVMPoolFull = null;
-  try {
-    isVMPoolFull = (
-      await axios.get(
-        'http://localhost:' + config.VMWORKER_PORT + '/isVMPoolFull'
-      )
-    ).data;
-  } catch (e) {
-    console.warn(e);
-  }
-  const beta =
-    decoded?.email != null &&
-    Boolean(config.BETA_USER_EMAILS.split(',').includes(decoded?.email));
-  const streamPath = beta ? config.STREAM_PATH : undefined;
-  const isCustomDomain = req.hostname === config.CUSTOM_SETTINGS_HOSTNAME;
-  return res.json({
-    isSubscriber,
-    isCustomer,
-    isVMPoolFull,
-    beta,
-    streamPath,
-    isCustomDomain,
-  });
 });
 
 app.get('/resolveRoom/:vanity', async (req, res) => {
@@ -340,36 +264,6 @@ app.get('/resolveRoom/:vanity', async (req, res) => {
   // console.log(vanity, result.rows);
   // We also use this for checking name availability, so just return empty response if it doesn't exist (http 200)
   return res.json(result?.rows[0]);
-});
-
-app.get('/listRooms', async (req, res) => {
-  const decoded = await validateUserToken(
-    req.query?.uid as string,
-    req.query?.token as string
-  );
-  if (!decoded) {
-    return res.status(400).json({ error: 'invalid user token' });
-  }
-  const result = await postgres?.query<PersistentRoom>(
-    `SELECT "roomId", vanity from room WHERE owner = $1`,
-    [decoded.uid]
-  );
-  return res.json(result?.rows ?? []);
-});
-
-app.delete('/deleteRoom', async (req, res) => {
-  const decoded = await validateUserToken(
-    req.query?.uid as string,
-    req.query?.token as string
-  );
-  if (!decoded) {
-    return res.status(400).json({ error: 'invalid user token' });
-  }
-  const result = await postgres?.query(
-    `DELETE from room WHERE owner = $1 and "roomId" = $2`,
-    [decoded.uid, req.query.roomId]
-  );
-  return res.json(result?.rows);
 });
 
 app.use(express.static(config.BUILD_DIRECTORY));
@@ -760,7 +654,6 @@ async function getStats() {
 }
 
 function computeOpenSubtitlesHash(first: Buffer, last: Buffer, size: number) {
-  // console.log(first.length, last.length, size);
   let temp = BigInt(size);
   process(first);
   process(last);
