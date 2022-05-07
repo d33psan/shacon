@@ -4,12 +4,12 @@ An application to watch movies and videos together in private chat rooms.
 
 ## Features
 
-Private rooms
-Video Call
-Text Chat
-Share your own file
-Screenshare
-Play any video from link
+*Private rooms
+*Video Call
+*Text Chat
+*Share your own file
+*Screenshare
+*Play any video from link
 
 ## Setup Instructions
 
