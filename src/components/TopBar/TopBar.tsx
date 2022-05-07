@@ -1,6 +1,6 @@
 import React from 'react';
 import { serverPath } from '../../utils';
-import { Icon, Button, Dropdown } from 'semantic-ui-react';
+import { Button } from 'semantic-ui-react';
 
 export class NewRoomButton extends React.Component<{
   size?: string;

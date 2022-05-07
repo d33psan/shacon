@@ -34,12 +34,10 @@ import { generateName } from '../../utils/generateName';
 import { Chat } from '../Chat';
 import { TopBar } from '../TopBar';
 import { VideoChat } from '../VideoChat';
-import { getCurrentSettings } from '../Settings';
 import { MultiStreamModal } from '../Modal/MultiStreamModal';
 import { ComboBox } from '../ComboBox/ComboBox';
 import { SearchComponent } from '../SearchComponent/SearchComponent';
 import { Controls } from '../Controls/Controls';
-import { SettingsTab } from '../Settings/SettingsTab';
 import { ErrorModal } from '../Modal/ErrorModal';
 import { ScreenShareModal } from '../Modal/ScreenShareModal';
 import { FileShareModal } from '../Modal/FileShareModal';
@@ -210,7 +208,6 @@ export default class App extends React.Component<AppProps, AppState> {
 
     const canAutoplay = await testAutoplay();
     this.setState({ isAutoPlayable: canAutoplay });
-    this.loadSettings();
     this.loadYouTube();
     this.init();
   }
@@ -241,12 +238,6 @@ export default class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.heartbeat);
   }
 
-
-  loadSettings = async () => {
-    // Load settings from localstorage
-    let settings = getCurrentSettings();
-    this.setState({ settings });
-  };
 
   loadYouTube = () => {
     // This code loads the IFrame Player API code asynchronously.
@@ -440,11 +431,9 @@ export default class App extends React.Component<AppProps, AppState> {
         this.stopScreenShare();
       }
       if (this.isScreenShare() && currentMedia.startsWith('screenshare://')) {
-        // Ignore, it's probably a reconnection
         return;
       }
       if (this.isFileShare() && currentMedia.startsWith('fileshare://')) {
-        // Ignore, it's probably a reconnection
         return;
       }
 
@@ -455,7 +444,6 @@ export default class App extends React.Component<AppProps, AppState> {
           currentSubtitle: data.subtitle,
           loading: Boolean(data.video),
           nonPlayableMedia: false,
-          controller: data.controller,
         },
         () => {
           if (
@@ -528,7 +516,6 @@ export default class App extends React.Component<AppProps, AppState> {
     });
     socket.on('REC:chat', (data: ChatMessage) => {
       if (
-        !getCurrentSettings().disableChatSound &&
         ((document.visibilityState && document.visibilityState !== 'visible') ||
           this.state.currentTab !== 'chat')
       ) {
@@ -1429,32 +1416,7 @@ export default class App extends React.Component<AppProps, AppState> {
             owner={this.state.owner}
           />
         )}
-        <SettingsTab
-          hide={this.state.currentTab !== 'settings' || !displayRightContent}
-          roomLock={this.state.roomLock}
-          setRoomLock={this.setRoomLock}
-          socket={this.socket}
-          isSubscriber={this.props.isSubscriber}
-          roomId={this.state.roomId}
-          isChatDisabled={this.state.isChatDisabled}
-          setIsChatDisabled={this.setIsChatDisabled}
-          owner={this.state.owner}
-          setOwner={this.setOwner}
-          vanity={this.state.vanity}
-          setVanity={this.setVanity}
-          roomLink={this.state.roomLink}
-          password={this.state.password}
-          setPassword={this.setPassword}
-          clearChat={this.clearChat}
-          roomTitle={this.state.roomTitle}
-          setRoomTitle={this.setRoomTitle}
-          roomDescription={this.state.roomDescription}
-          setRoomDescription={this.setRoomDescription}
-          roomTitleColor={this.state.roomTitleColor}
-          setRoomTitleColor={this.setRoomTitleColor}
-          mediaPath={this.state.mediaPath}
-          setMediaPath={this.setMediaPath}
-        />
+
       </Grid.Column>
     );
     return (

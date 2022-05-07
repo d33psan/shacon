@@ -1,17 +1,13 @@
 import { useState } from 'react';
 import './UserMenu.css';
-import { Popup, Button } from 'semantic-ui-react';
+import { Popup} from 'semantic-ui-react';
 import { Socket } from 'socket.io-client';
 
 export const UserMenu = ({
-  socket,
-  userToManage,
   trigger,
   displayName,
   position,
   disabled,
-  timestamp,
-  isChatMessage,
 }: {
   socket: Socket;
   userToManage: string;

@@ -9,7 +9,7 @@ type BooleanDict = { [key: string]: boolean };
 type AnyDict = { [key: string]: any };
 type PCDict = { [key: string]: RTCPeerConnection };
 type HTMLVideoElementDict = { [key: string]: HTMLVideoElement };
-type MediaType = 'vbrowser' | 'screenshare' | 'video' | 'youtube';
+type MediaType = 'screenshare' | 'video' | 'youtube';
 
 interface User {
   id: string;
@@ -67,8 +67,6 @@ interface HostState {
   videoTS: number;
   subtitle: string;
   paused: boolean;
-  isVBrowserLarge: boolean;
-  controller?: string;
 }
 
 interface PersistentRoom {

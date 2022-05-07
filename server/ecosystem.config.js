@@ -40,9 +40,6 @@ module.exports = {
       script: './buildServer/vmWorker.js',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       env: {
-        HETZNER_GATEWAY: 'gateway2.shacon.me',
-        HETZNER_SSH_KEYS: '1570536',
-        HETZNER_IMAGE: '64436326',
         SCW_GATEWAY: 'gateway1.shacon.me',
         SCW_IMAGE: '',
         DO_GATEWAY: 'gateway4.shacon.me',

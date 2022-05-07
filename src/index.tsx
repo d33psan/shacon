@@ -1,6 +1,6 @@
 import './index.css';
 
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter, Route } from 'react-router-dom';
 
@@ -8,9 +8,6 @@ import App from './components/App';
 import { Home } from './components/Home';
 import { TopBar } from './components/TopBar/TopBar';
 import { Modal } from 'semantic-ui-react';
-
-const Debug = lazy(() => import('./components/Debug/Debug'));
-
 
 class ShaCon extends React.Component {
   public state = {
@@ -77,7 +74,6 @@ class ShaCon extends React.Component {
               isCustomer={this.state.isCustomer}
             />
             <Suspense fallback={null}>
-              <Debug />
             </Suspense>
           </Route>
         </BrowserRouter>

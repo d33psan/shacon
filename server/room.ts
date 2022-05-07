@@ -1,27 +1,7 @@
-import config from './config';
-
-import axios from 'axios';
-import Redis from 'ioredis';
 import { Server, Socket } from 'socket.io';
-import { Client } from 'pg';
-
-import { redisCount, redisCountDistinct } from './utils/redis';
-import { AssignedVM } from './vm/base';
-import { getStartOfDay } from './utils/time';
 import { fetchYoutubeVideo, getYoutubeVideoID } from './utils/youtube';
 
-let redis: Redis.Redis | undefined = undefined;
-if (config.REDIS_URL) {
-  redis = new Redis(config.REDIS_URL);
-}
-let postgres: Client | undefined = undefined;
-if (config.DATABASE_URL) {
-  postgres = new Client({
-    connectionString: config.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-  });
-  postgres.connect();
-}
+
 
 export class Room {
   // Serialized state
@@ -32,7 +12,6 @@ export class Room {
   private chat: ChatMessage[] = [];
   private nameMap: StringDict = {};
   private pictureMap: StringDict = {};
-  public vBrowser: AssignedVM | undefined = undefined;
   public creator: string | undefined = undefined;
   public lock: string | undefined = undefined; // uid of the user who locked the room
   public playlist: PlaylistVideo[] = [];
@@ -70,35 +49,13 @@ export class Room {
 
     io.of(roomId).use(async (socket, next) => {
       // Validate the connector has the room password
-      const password = socket.handshake.query?.password;
-      // console.log(this.roomId, this.password, password);
-      if (postgres) {
-        const result = await postgres.query(
-          `SELECT password, "isSubRoom" FROM room where "roomId" = $1`,
-          [this.roomId]
-        );
-        const roomPassword = result.rows[0]?.password;
-        if (roomPassword && password !== roomPassword) {
-          next(new Error('not authorized'));
-          return;
-        }
-        const isSubRoom = result.rows[0]?.isSubRoom;
-        const roomCapacity = isSubRoom
-          ? config.ROOM_CAPACITY_SUB
-          : config.ROOM_CAPACITY;
-        if (roomCapacity && this.roster.length >= roomCapacity) {
-          next(new Error('room full'));
-          return;
-        }
-      }
+
       next();
     });
     io.of(roomId).on('connection', (socket: Socket) => {
       const clientId = socket.handshake.query?.clientId as string;
       this.clientIdMap[socket.id] = clientId;
       this.roster.push({ id: socket.id, clientId });
-      redisCount('connectStarts');
-      redisCountDistinct('connectStartsDistinct', clientId);
 
       socket.emit('REC:host', this.getHostState());
       socket.emit('REC:nameMap', this.nameMap);
@@ -107,7 +64,6 @@ export class Room {
       socket.emit('REC:lock', this.lock);
       socket.emit('chatinit', this.chat);
       socket.emit('playlist', this.playlist);
-      this.getRoomState(socket);
       io.of(roomId).emit('roster', this.getRosterForApp());
 
       socket.on('CMD:name', (data) => this.changeUserName(socket, data));
@@ -129,10 +85,6 @@ export class Room {
         this.joinScreenSharing(socket, data)
       );
       socket.on('CMD:leaveScreenShare', () => this.leaveScreenSharing(socket));
-      socket.on('CMD:startVBrowser', (data) =>
-        this.startVBrowser(socket, data)
-      );
-      socket.on('CMD:stopVBrowser', () => this.stopVBrowser(socket));
       socket.on('CMD:changeController', (data) =>
         this.changeController(socket, data)
       );
@@ -141,8 +93,7 @@ export class Room {
       socket.on('CMD:askHost', () => {
         socket.emit('REC:host', this.getHostState());
       });
-      socket.on('CMD:getRoomState', () => this.getRoomState(socket));
-      socket.on('CMD:setRoomState', (data) => this.setRoomState(socket, data));
+      
       socket.on('CMD:setRoomOwner', (data) => this.setRoomOwner(socket, data));
       socket.on('CMD:playlistNext', (data) => this.playlistNext(socket, data));
       socket.on('CMD:playlistAdd', (data) => this.playlistAdd(socket, data));
@@ -187,7 +138,6 @@ export class Room {
       chat: this.chat,
       nameMap: abbrNameMap,
       pictureMap: abbrPictureMap,
-      vBrowser: this.vBrowser,
       lock: this.lock,
       creator: this.creator,
       playlist: this.playlist,
@@ -213,9 +163,6 @@ export class Room {
     if (roomObj.pictureMap) {
       this.pictureMap = roomObj.pictureMap;
     }
-    if (roomObj.vBrowser) {
-      this.vBrowser = roomObj.vBrowser;
-    }
     if (roomObj.lock) {
       this.lock = roomObj.lock;
     }
@@ -229,17 +176,7 @@ export class Room {
 
   public saveRoom = async () => {
     this.lastUpdateTime = new Date();
-    if (postgres) {
-      try {
-        const roomString = this.serialize();
-        await postgres?.query(
-          `UPDATE room SET "lastUpdateTime" = $1, data = $2 WHERE "roomId" = $3`,
-          [this.lastUpdateTime, roomString, this.roomId]
-        );
-      } catch (e) {
-        console.warn(e);
-      }
-    }
+
   };
 
   public destroy = () => {
@@ -280,52 +217,14 @@ export class Room {
 
   private getHostState = (): HostState => {
     // Reverse lookup the clientid to the socket id
-    const match = this.roster.find(
-      (user) => this.clientIdMap[user.id] === this.vBrowser?.controllerClient
-    );
     return {
       video: this.video ?? '',
       videoTS: this.videoTS,
       subtitle: this.subtitle,
       paused: this.paused,
-      isVBrowserLarge: Boolean(this.vBrowser && this.vBrowser.large),
-      controller: match?.id,
     };
   };
 
-  public stopVBrowserInternal = async () => {
-    const assignTime = this.vBrowser && this.vBrowser.assignTime;
-    const id = this.vBrowser?.id;
-    const provider = this.vBrowser?.provider;
-    const isLarge = this.vBrowser?.large ?? false;
-    const region = this.vBrowser?.region ?? '';
-    const uid = this.vBrowser?.creatorUID ?? '';
-    this.vBrowser = undefined;
-    this.cmdHost(null, '');
-    // Force a save because this might change in unattended rooms
-    this.saveRoom();
-    if (redis && assignTime) {
-      await redis.lpush('vBrowserSessionMS', Number(new Date()) - assignTime);
-      await redis.ltrim('vBrowserSessionMS', 0, 24);
-    }
-    if (redis && uid) {
-      await redis.del('vBrowserUIDLock:' + uid);
-    }
-    try {
-      await axios.post(
-        'http://localhost:' + config.VMWORKER_PORT + '/releaseVM',
-        {
-          provider,
-          isLarge,
-          region,
-          id,
-          uid,
-        }
-      );
-    } catch (e) {
-      console.warn(e);
-    }
-  };
 
   private cmdHost = (socket: Socket | null, data: string) => {
     this.video = data;
@@ -372,14 +271,6 @@ export class Room {
     return result;
   };
 
-  private validateOwner = async (uid: string) => {
-    const result = await postgres?.query(
-      'SELECT owner FROM room where "roomId" = $1',
-      [this.roomId]
-    );
-    const owner = result?.rows[0]?.owner;
-    return !owner || uid === owner;
-  };
 
   private changeUserName = (socket: Socket, data: string) => {
     if (!data) {
@@ -417,11 +308,11 @@ export class Room {
       return;
     }
     const sharer = this.getRosterForApp().find((user) => user.isScreenShare);
-    if (sharer || this.vBrowser) {
-      // Can't update the video while someone is screensharing/filesharing or vbrowser is running
+    if (sharer) {
+      // Can't update the video while someone is screensharing/filesharing 
       return;
     }
-    redisCount('urlStarts');
+
     this.cmdHost(socket, data);
   };
 
@@ -446,7 +337,7 @@ export class Room {
     if (data && data.length > 20000) {
       return;
     }
-    redisCount('playlistAdds');
+
     const youtubeVideoId = getYoutubeVideoID(data);
     if (youtubeVideoId) {
       const video = await fetchYoutubeVideo(youtubeVideoId);
@@ -544,7 +435,6 @@ export class Room {
     if (data && data.length > 10000) {
       return;
     }
-    redisCount('chatMessages');
     const chatMsg = { id: socket.id, msg: data };
     this.addChatMessage(socket, chatMsg);
   };
@@ -568,7 +458,6 @@ export class Room {
     if (!msg.reactions[data.value].includes(socket.id)) {
       msg.reactions[data.value].push(socket.id);
       const reaction: Reaction = { user: socket.id, ...data };
-      redisCount('addReaction');
       this.io.of(this.roomId).emit('REC:addReaction', reaction);
     }
   };
@@ -597,7 +486,6 @@ export class Room {
     const match = this.roster.find((user) => user.id === socket.id);
     if (match) {
       match.isVideoChat = true;
-      redisCount('videoChatStarts');
     }
     this.io.of(this.roomId).emit('roster', this.getRosterForApp());
   };
@@ -621,10 +509,9 @@ export class Room {
     }
     if (data && data.file) {
       this.cmdHost(socket, 'fileshare://' + this.clientIdMap[socket.id]);
-      redisCount('fileShareStarts');
     } else {
       this.cmdHost(socket, 'screenshare://' + this.clientIdMap[socket.id]);
-      redisCount('screenShareStarts');
+
     }
     this.io.of(this.roomId).emit('roster', this.getRosterForApp());
   };
@@ -638,153 +525,12 @@ export class Room {
     this.io.of(this.roomId).emit('roster', this.getRosterForApp());
   };
 
-  private startVBrowser = async (
-    socket: Socket,
-    data: {
-      uid: string;
-      token: string;
-      rcToken: string;
-      options: { size: string; region: string; provider: string };
-    }
-  ) => {
-    if (!this.validateLock(socket.id)) {
-      socket.emit('errorMessage', 'Room is locked.');
-      return;
-    }
-    if (!data) {
-      socket.emit('errorMessage', 'Invalid input.');
-      return;
-    }
-
-
-    const clientId = this.clientIdMap[socket.id];
-    const uid = this.uidMap[socket.id];
-    // Log the vbrowser creation by uid and clientid
-    if (redis) {
-      const expireTime = getStartOfDay() / 1000 + 86400;
-      if (clientId) {
-        const clientCount = await redis.zincrby(
-          'vBrowserClientIDs',
-          1,
-          clientId
-        );
-        redis.expireat('vBrowserClientIDs', expireTime);
-        const clientMinutes = await redis.zincrby(
-          'vBrowserClientIDMinutes',
-          1,
-          clientId
-        );
-        redis.expireat('vBrowserClientIDMinutes', expireTime);
-      }
-      if (uid) {
-        const uidCount = await redis.zincrby('vBrowserUIDs', 1, uid);
-        redis.expireat('vBrowserUIDs', expireTime);
-        const uidMinutes = await redis.zincrby('vBrowserUIDMinutes', 1, uid);
-        redis.expireat('vBrowserUIDMinutes', expireTime);
-        // TODO limit users based on these counts
-
-        const uidLock = await redis.set(
-          'vBrowserUIDLock:' + uid,
-          '1',
-          'NX',
-          'EX',
-          120
-        );
-        if (!uidLock) {
-          socket.emit(
-            'errorMessage',
-            'There is already an active vBrowser for this user.'
-          );
-          return;
-        }
-      }
-    }
-    let isLarge = false;
-    let region = 'US';
-    let provider = data.options?.provider ?? config.VM_MANAGER_ID;
-
-    if (config.RECAPTCHA_SECRET_KEY) {
-      try {
-        // Validate the request isn't spam/automated
-        const validation = await axios({
-          url: `https://www.google.com/recaptcha/api/siteverify?secret=${config.RECAPTCHA_SECRET_KEY}&response=${data.rcToken}`,
-          method: 'POST',
-        });
-        // console.log(validation?.data);
-        const isLowScore = validation?.data?.score < 0.1;
-        const failed = validation?.data?.success === false;
-        console.log('[RECAPTCHA] score: ', validation?.data?.score);
-        if (failed || isLowScore) {
-          if (isLowScore) {
-            redisCount('recaptchaRejectsLowScore');
-          } else {
-            redisCount('recaptchaRejectsOther');
-          }
-          socket.emit('errorMessage', 'Invalid ReCAPTCHA.');
-          return;
-        }
-      } catch (e) {
-        // if Recaptcha is down or other network issues, allow continuing
-        console.warn(e);
-      }
-    }
-
-    redisCount('vBrowserStarts');
-    this.cmdHost(socket, 'vbrowser://');
-    const assignmentResp = await axios.post(
-      'http://localhost:' + config.VMWORKER_PORT + '/assignVM',
-      {
-        provider,
-        isLarge,
-        region,
-        uid,
-      }
-    );
-    const assignment: AssignedVM = assignmentResp.data;
-    if (this.video !== 'vbrowser://') {
-      return;
-    }
-    if (!assignment) {
-      this.cmdHost(socket, '');
-      this.vBrowser = undefined;
-      socket.emit(
-        'errorMessage',
-        'Failed to assign VBrowser. Please try again later.'
-      );
-      redisCount('vBrowserFails');
-      return;
-    }
-    this.vBrowser = assignment;
-    this.vBrowser.controllerClient = clientId;
-    this.vBrowser.creatorUID = uid;
-    this.vBrowser.creatorClientID = clientId;
-    this.cmdHost(
-      null,
-      'vbrowser://' + this.vBrowser.pass + '@' + this.vBrowser.host
-    );
-  };
-
-  private stopVBrowser = async (socket: Socket) => {
-    if (!this.vBrowser && this.video !== 'vbrowser://') {
-      return;
-    }
-    if (!this.validateLock(socket.id)) {
-      return;
-    }
-    await this.stopVBrowserInternal();
-    redisCount('vBrowserTerminateManual');
-  };
-
   private changeController = (socket: Socket, data: string) => {
     if (data && data.length > 100) {
       return;
     }
     if (!this.validateLock(socket.id)) {
       return;
-    }
-    if (this.vBrowser) {
-      this.vBrowser.controllerClient = this.clientIdMap[data];
-      this.io.of(this.roomId).emit('REC:changeController', data);
     }
   };
 
@@ -823,10 +569,6 @@ export class Room {
       undo: boolean;
     }
   ) => {
-    if (!postgres) {
-      socket.emit('errorMessage', 'Database is not available');
-      return;
-    }
 
     if (data.undo) {
       socket.emit('REC:getRoomState', {});
@@ -836,125 +578,6 @@ export class Room {
         roomId: this.roomId,
       };
 
-    }
-  };
-
-  private getRoomState = async (socket: Socket) => {
-    if (!postgres) {
-      return;
-    }
-    const result = await postgres.query(
-      `SELECT password, vanity, owner, "isChatDisabled", "roomTitle", "roomDescription", "roomTitleColor", "mediaPath" FROM room where "roomId" = $1`,
-      [this.roomId]
-    );
-    const first = result.rows[0];
-    if (this.isChatDisabled === undefined) {
-      this.isChatDisabled = Boolean(first?.isChatDisabled);
-    }
-    // TODO only send the password if this is current owner
-    socket.emit('REC:getRoomState', {
-      password: first?.password,
-      vanity: first?.vanity,
-      owner: first?.owner,
-      isChatDisabled: first?.isChatDisabled,
-      roomTitle: first?.roomTitle,
-      roomDescription: first?.roomDescription,
-      roomTitleColor: first?.roomTitleColor,
-      mediaPath: first?.mediaPath,
-    });
-  };
-
-  private setRoomState = async (
-    socket: Socket,
-    data: {
-      uid: string;
-      token: string;
-      password: string;
-      vanity: string;
-      isChatDisabled: boolean;
-      roomTitle: string;
-      roomDescription: string;
-      roomTitleColor: string;
-      mediaPath: string;
-    }
-  ) => {
-    if (!postgres) {
-      socket.emit('errorMessage', 'Database is not available');
-      return;
-    }
-
-    const {
-      password,
-      vanity,
-      isChatDisabled,
-      roomTitle,
-      roomDescription,
-      roomTitleColor,
-      mediaPath,
-    } = data;
-    if (password) {
-      if (password.length > 100) {
-        socket.emit('errorMessage', 'Password too long');
-        return;
-      }
-    }
-    if (vanity) {
-      if (vanity.length > 100) {
-        socket.emit('errorMessage', 'Custom URL too long');
-        return;
-      }
-    }
-    if (roomTitle && roomTitle.length > 50) {
-      socket.emit('errorMessage', 'Room title too long');
-      return;
-    }
-    if (roomDescription && roomDescription.length > 120) {
-      socket.emit('errorMessage', 'Room description too long');
-      return;
-    }
-    // check if is valid hex color representation
-    if (!/^#([0-9a-f]{3}){1,2}$/i.test(roomTitleColor)) {
-      socket.emit('errorMessage', 'Invalid color code');
-      return;
-    }
-    if (mediaPath && mediaPath.length > 1000) {
-      socket.emit('errorMessage', 'Media source too long');
-      return;
-    }
-    // console.log(owner, vanity, password);
-    const roomObj: any = {
-      roomId: this.roomId,
-      password: password,
-      isChatDisabled: isChatDisabled,
-      mediaPath: mediaPath,
-    };
-
-    try {
-      const query = `UPDATE room
-        SET ${Object.keys(roomObj).map((k, i) => `"${k}" = $${i + 1}`)}
-        WHERE "roomId" = $${Object.keys(roomObj).length + 1}
-        AND owner = $${Object.keys(roomObj).length + 2}
-        RETURNING *`;
-      const result = await postgres.query(query, [
-        ...Object.values(roomObj),
-        this.roomId,
-      ]);
-      const row = result.rows[0];
-      this.isChatDisabled = Boolean(row?.isChatDisabled);
-      // TODO only send password if current owner
-      this.io.of(this.roomId).emit('REC:getRoomState', {
-        password: row?.password,
-        vanity: row?.vanity,
-        owner: row?.owner,
-        isChatDisabled: row?.isChatDisabled,
-        roomTitle: row?.roomTitle,
-        roomDescription: row?.roomDescription,
-        roomTitleColor: row?.roomTitleColor,
-        mediaPath: row?.mediaPath,
-      });
-      socket.emit('successMessage', 'Saved admin settings');
-    } catch (e) {
-      console.warn(e);
     }
   };
 
