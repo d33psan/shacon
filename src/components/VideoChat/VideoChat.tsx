@@ -10,6 +10,7 @@ import {
   iceServers,
 } from '../../utils';
 import { UserMenu } from '../UserMenu/UserMenu';
+import firebase from 'firebase/compat/app';
 
 interface VideoChatProps {
   socket: Socket;
@@ -20,6 +21,7 @@ interface VideoChatProps {
   rosterUpdateTS: Number;
   hide?: boolean;
   owner: string | undefined;
+  user: firebase.User | undefined;
 }
 
 export class VideoChat extends React.Component<VideoChatProps> {
@@ -214,7 +216,7 @@ export class VideoChat extends React.Component<VideoChatProps> {
   };
 
   render() {
-    const { participants, pictureMap, nameMap, tsMap, socket, owner } =
+    const { participants, pictureMap, nameMap, tsMap, socket, owner, user } =
       this.props;
     const ourStream = window.shacon.ourStream;
     const videoRefs = window.shacon.videoRefs;
@@ -330,7 +332,8 @@ export class VideoChat extends React.Component<VideoChatProps> {
                   <div>
                     <UserMenu
                       displayName={nameMap[p.id] || p.id}
-                      disabled={!Boolean(owner)}
+                      user={user}
+                      disabled={!Boolean(owner && owner === user?.uid)}
                       position={'left center'}
                       socket={socket}
                       userToManage={p.id}
@@ -344,7 +347,7 @@ export class VideoChat extends React.Component<VideoChatProps> {
                             top: 5,
                             cursor: 'pointer',
                             opacity: 0.75,
-                            visibility: Boolean(owner)
+                            visibility: Boolean(owner && owner === user?.uid)
                               ? 'visible'
                               : 'hidden',
                           }}

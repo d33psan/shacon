@@ -1,6 +1,8 @@
 //@ts-ignore
 import canAutoplay from 'can-autoplay';
 import { v4 as uuidv4 } from 'uuid';
+import md5 from 'blueimp-md5';
+import firebase from 'firebase/compat/app';
 import { XMLParser } from 'fast-xml-parser';
 
 export function formatTimestamp(input: any) {
@@ -307,4 +309,20 @@ export function calculateMedian(array: Array<number>): number {
   return 0;
 }
 
-
+export async function getUserImage(
+  user: firebase.User
+): Promise<string | null> {
+  // Check if user has a Gravatar
+  const hash = user.email ? md5(user.email) : '';
+  if (user.email) {
+    const gravatar = `https://www.gravatar.com/avatar/${hash}?d=404&s=256`;
+    const response = await window.fetch(gravatar);
+    if (response.ok) {
+      return gravatar;
+    }
+  }
+  if (user.photoURL) {
+    return user.photoURL + '?height=256&width=256';
+  }
+  return `https://www.gravatar.com/avatar/${hash}?d=identicon`;
+}
