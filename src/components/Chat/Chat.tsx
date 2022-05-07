@@ -173,23 +173,7 @@ export class Chat extends React.Component<ChatProps> {
       return `locked the room`;
     } else if (cmd === 'unlock') {
       return 'unlocked the room';
-    } else if (cmd === 'vBrowserTimeout') {
-      return (
-        <React.Fragment>
-          The VBrowser shut down automatically.
-          <br />
-          Subscribe for longer sessions.
-        </React.Fragment>
-      );
-    } else if (cmd === 'vBrowserAlmostTimeout') {
-      return (
-        <React.Fragment>
-          The VBrowser will shut down soon.
-          <br />
-          Subscribe for longer sessions.
-        </React.Fragment>
-      );
-    }
+    }  
     return cmd;
   };
 

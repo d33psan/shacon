@@ -14,7 +14,6 @@ import {
 import { getCurrentSettings, updateSettings } from './LocalSettings';
 import axios from 'axios';
 import { serverPath } from '../../utils';
-import { PermanentRoomModal } from '../Modal/PermanentRoomModal';
 import { Socket } from 'socket.io-client';
 import { HexColorPicker } from 'react-colorful';
 
@@ -120,11 +119,7 @@ export const SettingsTab = ({
         padding: '8px',
       }}
     >
-      {permModalOpen && (
-        <PermanentRoomModal
-          closeModal={() => setPermModalOpen(false)}
-        ></PermanentRoomModal>
-      )}
+
       <div className="sectionHeader">Room Settings</div>
       <SettingRow
         icon={roomLock ? 'lock' : 'lock open'}

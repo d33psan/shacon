@@ -96,7 +96,6 @@ interface AppState {
   watchOptions: SearchResult[];
   isScreenSharing: boolean;
   isScreenSharingFile: boolean;
-  isVBrowser: boolean;
   isYouTubeReady: boolean;
   isAutoPlayable: boolean;
   downloaded: number;
@@ -107,12 +106,9 @@ interface AppState {
   error: string;
   isErrorAuth: boolean;
   settings: Settings;
-  vBrowserResolution: string;
-  isVBrowserLarge: boolean;
   nonPlayableMedia: boolean;
   currentTab: string;
   isSubscribeModalOpen: boolean;
-  isVBrowserModalOpen: boolean;
   isScreenShareModalOpen: boolean;
   isFileShareModalOpen: boolean;
   isSubtitleModalOpen: boolean;
@@ -157,7 +153,6 @@ export default class App extends React.Component<AppProps, AppState> {
     watchOptions: [],
     isScreenSharing: false,
     isScreenSharingFile: false,
-    isVBrowser: false,
     isYouTubeReady: false,
     isAutoPlayable: true,
     downloaded: 0,
@@ -168,14 +163,11 @@ export default class App extends React.Component<AppProps, AppState> {
     error: '',
     isErrorAuth: false,
     settings: {},
-    vBrowserResolution: '1280x720@30',
-    isVBrowserLarge: false,
     nonPlayableMedia: false,
     currentTab:
       (querystring.parse(window.location.search.substring(1)).tab as string) ||
       'chat',
     isSubscribeModalOpen: false,
-    isVBrowserModalOpen: false,
     isScreenShareModalOpen: false,
     isFileShareModalOpen: false,
     isSubtitleModalOpen: false,
@@ -455,9 +447,7 @@ export default class App extends React.Component<AppProps, AppState> {
         // Ignore, it's probably a reconnection
         return;
       }
-      if (this.isVBrowser() && !currentMedia.startsWith('vbrowser://')) {
-        this.stopVBrowser();
-      }
+
       this.setState(
         {
           currentMedia,
@@ -465,20 +455,13 @@ export default class App extends React.Component<AppProps, AppState> {
           currentSubtitle: data.subtitle,
           loading: Boolean(data.video),
           nonPlayableMedia: false,
-          isVBrowserLarge: data.isVBrowserLarge,
-          vBrowserResolution: data.isVBrowserLarge
-            ? '1920x1080@30'
-            : '1280x720@30',
           controller: data.controller,
         },
         () => {
           if (
-            this.state.isScreenSharingFile ||
-            (this.isVBrowser() && this.getVBrowserHost())
+            this.state.isScreenSharingFile
           ) {
-            console.log(
-              'skipping REC:host video since fileshare is using leftVideo or this is a vbrowser'
-            );
+
             this.setLoadingFalse();
             return;
           }
@@ -493,11 +476,8 @@ export default class App extends React.Component<AppProps, AppState> {
             console.log(
               'YT player not ready, onReady callback will retry when it is'
             );
-          } else if (this.isVBrowser()) {
-            console.log(
-              'not playing video as this is a vbrowser:// placeholder'
-            );
-          } else {
+          } 
+           else {
             // Start this video
             this.doSrc(data.video, data.videoTS);
             if (!data.paused) {
@@ -815,16 +795,6 @@ export default class App extends React.Component<AppProps, AppState> {
     }
   };
 
-  startVBrowser = async (rcToken: string, options: { size: string }) => {
-    // user.uid is the public user identifier
-    // user.getIdToken() is the secret access token we can send to the server to prove identity
-
-    this.socket.emit('CMD:startVBrowser', { options, rcToken });
-  };
-
-  stopVBrowser = async () => {
-    this.socket.emit('CMD:stopVBrowser');
-  };
 
   changeController = async (_e: any, data: DropdownProps) => {
     // console.log(data);
@@ -852,21 +822,11 @@ export default class App extends React.Component<AppProps, AppState> {
     return this.state.currentMedia.startsWith('fileshare://');
   };
 
-  isVBrowser = () => {
-    return this.state.currentMedia.startsWith('vbrowser://');
-  };
 
   isHttp = () => {
     return this.state.currentMedia.startsWith('http');
   };
 
-  getVBrowserPass = () => {
-    return this.state.currentMedia.replace('vbrowser://', '').split('@')[0];
-  };
-
-  getVBrowserHost = () => {
-    return this.state.currentMedia.replace('vbrowser://', '').split('@')[1];
-  };
 
   getCurrentTime = () => {
     if (this.isVideo()) {
@@ -894,7 +854,7 @@ export default class App extends React.Component<AppProps, AppState> {
   };
 
   isPauseDisabled = () => {
-    return this.isScreenShare() || this.isVBrowser();
+    return this.isScreenShare() ;
   };
 
   isMuted = () => {
@@ -937,7 +897,7 @@ export default class App extends React.Component<AppProps, AppState> {
 
   doSrc = async (src: string, time: number) => {
     console.log('doSrc', src, time);
-    if (this.isScreenShare() || this.isFileShare() || this.isVBrowser()) {
+    if (this.isScreenShare() || this.isFileShare() ) {
       // No-op as we'll set video when WebRTC completes
       return;
     }
@@ -1099,13 +1059,10 @@ export default class App extends React.Component<AppProps, AppState> {
   fullScreen = async (bVideoOnly: boolean) => {
     let container = document.getElementById('theaterContainer') as HTMLElement;
     if (bVideoOnly || isMobile()) {
-      if (this.isVBrowser() && !isMobile()) {
-        container = document.getElementById('leftVideoParent') as HTMLElement;
-      } else {
+
         container = document.getElementById(
           this.isYouTube() ? 'leftYt' : 'leftVideo'
         ) as HTMLElement;
-      }
     }
     if (
       !container.requestFullscreen &&
@@ -1296,9 +1253,7 @@ export default class App extends React.Component<AppProps, AppState> {
       const sharer = this.state.participants.find((user) => user.isScreenShare);
       return this.state.nameMap[sharer?.id ?? ''] + "'s file";
     }
-    if (input.startsWith('vbrowser://')) {
-      return 'Virtual Browser' + (this.state.isVBrowserLarge ? '+' : '');
-    }
+
     if (input.includes('/stream?torrent=magnet')) {
       const search = new URL(input).search;
       const magnetUrl = querystring.parse(search.substring(1))
@@ -1724,7 +1679,7 @@ export default class App extends React.Component<AppProps, AppState> {
                         )}
                         {!this.screenShareStream &&
                           !sharer &&
-                          !this.isVBrowser() && (
+                           (
                             <Button
                               fluid
                               className="toolButton"
@@ -1745,7 +1700,7 @@ export default class App extends React.Component<AppProps, AppState> {
 
                         {!this.screenShareStream &&
                           !sharer &&
-                          !this.isVBrowser() && (
+                           (
                             <Button
                               fluid
                               className="toolButton"

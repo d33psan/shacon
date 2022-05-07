@@ -3,7 +3,7 @@ import config from './config';
 import axios from 'axios';
 import Redis from 'ioredis';
 import { Server, Socket } from 'socket.io';
-import { Client, QueryResult } from 'pg';
+import { Client } from 'pg';
 
 import { redisCount, redisCountDistinct } from './utils/redis';
 import { AssignedVM } from './vm/base';
