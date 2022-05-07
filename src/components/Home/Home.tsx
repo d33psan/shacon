@@ -3,6 +3,11 @@ import { NewRoomButton } from '../TopBar';
 import styles from './Home.module.css';
 
 export const Home = () => {
+  function getInputFromTextBox() {
+    var input = (document.getElementById('roomlink') as HTMLFormElement)
+    var url = "/#" + input.value
+    window.open(url);
+  }
   return (
     <div>
       <div className={styles.container}>
@@ -12,9 +17,15 @@ export const Home = () => {
               style={{ marginTop: '8px', width: '160px', paddingTop: '200px' }}
             >
               <NewRoomButton />
+              <br></br>
+              <input type="text" placeholder="Enter Room Code" id="roomlink"  ></input>
+              <br></br>
+              <br></br>
+              <input type="submit" value="Join Room" className='toolButton' onClick={ getInputFromTextBox }></input>
             </div>
           }
         />
+        
       </div>
     </div>
   );

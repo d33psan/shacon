@@ -29,8 +29,19 @@ button.linkButton {
 }
 
 .toolButton {
-  min-width: 135px;
+  background-color: grey;
+  color: #ffffff;
+  min-width: 160px;
+  border-radius: 6px;
   height: 45px;
+}
+
+input[type=text] {
+  height: 45px;
+  text-align: center;
+  width: 100%;
+  border: 2px solid grey;
+  border-radius: 4px;
 }
 
 .smallText {
