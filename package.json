@@ -37,7 +37,7 @@
     "recharts": "^2.1.9",
     "s3-client": "^4.4.2",
     "semantic-ui-react": "^2.1.2",
-    "socket.io": "^4.4.1",
+    "socket.io": "^4.5.4",
     "socket.io-client": "^4.4.1",
     "srt-webvtt": "^2.0.0",
     "ssh-exec": "^2.0.0",
